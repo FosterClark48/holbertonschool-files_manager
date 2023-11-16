@@ -30,3 +30,6 @@ Thumbs.db
 
 # Production build files
 /build
+
+# Redis database dump file
+dump.rdb
