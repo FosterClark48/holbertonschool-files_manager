@@ -1,6 +1,6 @@
 // Controller for general application operations like checking service status
-import RedisClient from '../utils/redis';
-import DBClient from '../utils/db';
+const RedisClient = require('../utils/redis');
+const DBClient = require('../utils/db');
 
 class AppController {
   static async getStatus(req, res) {
