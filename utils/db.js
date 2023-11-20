@@ -25,7 +25,7 @@ class DBClient {
   }
 
   async isAlive() {
-    if (!this.db) {
+    if (!this.client || !this.client.isConnected()) {
       return false;
     }
     try {
