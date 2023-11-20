@@ -1,6 +1,6 @@
 // Controller for user-related operations (user creation and management)
-import crypto from 'crypto';
-import dbClient from '../utils/db';
+const crypto = require('crypto');
+const dbClient = require('../utils/db');
 
 class UsersController {
   static async postNew(req, res) {
