@@ -92,6 +92,22 @@ class FilesController {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
+
+  static async getShow(req, res) {
+    const token = req.headers['x-token'];
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const fileId = req.params.id;
+    try {
+      const file = await DBClient.db.collection('files').findOne({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+      if (!file) return res.status(404).json({ error: 'Not found' });
+      return res.status(200).json(file);
+    } catch (error) {
+      console.error('Error in getShow:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
 }
 
 module.exports = FilesController;
