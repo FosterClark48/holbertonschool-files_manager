@@ -18,7 +18,9 @@ async function getUserIdFromToken(token) {
 
 class FilesController {
   static async postUpload(req, res) {
-    const { name, type, parentId, isPublic, data } = req.body;
+    const {
+      name, type, parentId, isPublic, data,
+    } = req.body;
     const token = req.headers['x-token'];
 
     // Validate required fields
@@ -43,7 +45,7 @@ class FilesController {
       if (parentId) {
         const parent = await DBClient.db.collection('files').findOne({ _id: parentId });
         if (!parent) {
-          return res.status(400).json({ error: 'Parnet not found'});
+          return res.status(400).json({ error: 'Parnet not found' });
         }
         if (parent.type !== 'folder') {
           return res.status(400).json({ error: 'Parent is not a folder' });
