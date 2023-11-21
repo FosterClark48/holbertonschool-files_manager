@@ -2,6 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const { ObjectId } = require('mongodb');
 const DBClient = require('../utils/db');
 const RedisClient = require('../utils/redis');
 
@@ -39,13 +40,17 @@ class FilesController {
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const objectIdUserId = new ObjectId(userId);
 
     try {
     // Parent ID validation
       if (parentId) {
-        const parent = await DBClient.db.collection('files').findOne({ _id: parentId });
+        if (!ObjectId.isValid(parentId)) {
+          return res.status(400).json({ error: 'Invalid Parent ID' });
+        }
+        const parent = await DBClient.db.collection('files').findOne({ _id: new ObjectId(parentId) });
         if (!parent) {
-          return res.status(400).json({ error: 'Parnet not found' });
+          return res.status(400).json({ error: 'Parent not found' });
         }
         if (parent.type !== 'folder') {
           return res.status(400).json({ error: 'Parent is not a folder' });
@@ -53,11 +58,11 @@ class FilesController {
       }
 
       let fileData = {
-        userId,
+        userId: objectIdUserId,
         name,
         type,
         isPublic: isPublic || false,
-        parentId: parentId || 0,
+        parentId: parentId && parentId !== '0' ? new ObjectId(parentId) : 0,
       };
 
       if (type === 'folder') {
