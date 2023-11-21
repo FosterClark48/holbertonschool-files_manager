@@ -121,16 +121,25 @@ class FilesController {
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     // Extract parentID and page number from query params, w/ defaults
-    const parentId = req.query.parentId || '0';
+    // Set default parentId to '0' (root) if not provided
+    const parentId = req.query.parentId ? req.query.parentId : '0';
     const page = parseInt(req.query.page, 10) || 0;
     try {
       // Query 'files' collection for files belonging to user
       // Apply filtering based on parentID & pagination
+      const filesQuery = { userId: ObjectId(userId), parentId: ObjectId(parentId) };
+      const totalFiles = await DBClient.db.collection('files').countDocuments(filesQuery);
+
       const files = await DBClient.db.collection('files')
-        .find({ userId: ObjectId(userId), parentId: ObjectId(parentId) })
+        .find(filesQuery)
         .skip(page * 20) // Display next 20 docs on next page, etc.
         .limit(20) // Limit the result to 20 docs per page
         .toArray();
+
+      // Check if page number is too far
+      if (page > 0 && files.length === 0 && totalFiles > 0) {
+        return res.status(404).json({ error: 'No files found on this page' });
+      }
       // Return fetched files
       return res.status(200).json(files);
     } catch (error) {
