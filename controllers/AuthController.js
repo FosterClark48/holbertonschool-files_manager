@@ -15,7 +15,15 @@ class AuthController {
 
     const base64Credentials = authHeader.split(' ')[1];
     const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+    // Validate the credentials format
+    if (!credentials || !credentials.includes(':')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const [email, pswd] = credentials.split(':');
+    if (!email || !pswd) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
     // Hash the provided password
     const hashedPassword = sha1(pswd);
