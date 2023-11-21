@@ -1,4 +1,4 @@
-// controllers/FilesController.js task5
+// controllers/FilesController.js task5, task6, task7, task8
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
@@ -155,9 +155,13 @@ class FilesController {
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const fileId = req.params.id;
+    if (!Object.isValid(fileId)) {
+      return res.status(400).json({ error: 'Invalid file ID' });
+    }
+
     try {
       // Check if file w/ provided ID exists & belongs to authenticated user
-      const file = await DBClient.db.collection('files').findOne({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+      const file = await DBClient.db.collection('files').findOne({ _id: new ObjectId(fileId), userId: new ObjectId(userId) });
       // If file doesn't exist - 404 - otherwise return file info
       if (!file) return res.status(404).json({ error: 'Not found' });
       return res.status(200).json(file);
