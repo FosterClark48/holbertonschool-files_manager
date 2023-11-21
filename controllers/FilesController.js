@@ -93,18 +93,48 @@ class FilesController {
     }
   }
 
+  // Get file based on user ID
   static async getShow(req, res) {
     const token = req.headers['x-token'];
+    // Verify user based on token, if unauthorized - 401
     const userId = await getUserIdFromToken(token);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const fileId = req.params.id;
     try {
+      // Check if file w/ provided ID exists & belongs to authenticated user
       const file = await DBClient.db.collection('files').findOne({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+      // If file doesn't exist - 404 - otherwise return file info
       if (!file) return res.status(404).json({ error: 'Not found' });
       return res.status(200).json(file);
     } catch (error) {
       console.error('Error in getShow:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get all files from parentID with pagination
+  static async getIndex(req, res) {
+    const token = req.headers['x-token'];
+    // Retrieve userID from token, if not found - 401
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Extract parentID and page number from query params, w/ defaults
+    const parentId = req.query.parentId || '0';
+    const page = parseInt(req.query.page, 10) || 0;
+    try {
+      // Query 'files' collection for files belonging to user
+      // Apply filtering based on parentID & pagination
+      const files = await DBClient.db.collection('files')
+        .find({ userId: ObjectId(userId), parentId: ObjectId(parentId) })
+        .skip(page * 20) // Display next 20 docs on next page, etc.
+        .limit(20) // Limit the result to 20 docs per page
+        .toArray();
+      // Return fetched files
+      return res.status(200).json(files);
+    } catch (error) {
+      console.error('Error in getIndex:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
