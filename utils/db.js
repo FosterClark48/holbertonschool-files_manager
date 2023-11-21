@@ -4,6 +4,7 @@ import { MongoClient } from 'mongodb';
 class DBClient {
   constructor() {
     this.db = null;
+    this.users = null;
     this.connectMongo();
   }
 
@@ -18,6 +19,7 @@ class DBClient {
       this.client = new MongoClient(url, { useNewUrlParser: true, useUnifiedTopology: true });
       await this.client.connect();
       this.db = this.client.db(database);
+      this.users = this.db.collection('users');
       console.log('Connected to MongoDB');
     } catch (error) {
       console.error('Failed to connect to MongoDB', error);
