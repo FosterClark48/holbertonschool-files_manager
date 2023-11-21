@@ -1,7 +1,6 @@
 // Controller for authentication-related actions (login, logout, token management)
 const sha1 = require('sha1');
 const { v4: uuidv4 } = require('uuid');
-const atob = require('atob');
 const RedisClient = require('../utils/redis');
 const DBClient = require('../utils/db');
 
@@ -15,7 +14,7 @@ class AuthController {
     }
 
     const base64Credentials = authHeader.split(' ')[1];
-    const credentials = atob(base64Credentials);
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
     const [email, pswd] = credentials.split(':');
 
     // Hash the provided password
