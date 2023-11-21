@@ -51,7 +51,7 @@ class FilesController {
       }
 
       let fileData = {
-        userId:
+        userId,
         name,
         type,
         isPublic: isPublic || false,
