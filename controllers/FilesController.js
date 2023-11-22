@@ -127,29 +127,34 @@ class FilesController {
 
     // Extract parentID and page number from query params, w/ defaults
     // Set default parentId to '0' (root) if not provided
-    const parentId = req.query.parentId ? req.query.parentId : '0';
+    const parentId = req.query.parentId || '0';
     const page = parseInt(req.query.page, 10) || 0;
     try {
-      const pipeline = [
-        { $match: { userId: ObjectId(userId), parentId: ObjectId(parentId) } },
-        { $skip: page * 20 },
-        { $limit: 20 },
-      ];
-      const files = await DBClient.db.collection('files').aggregate(pipeline).toArray();
+      const filesQuery = { userId: new ObjectId(userId), parentId: new ObjectId(parentId) };
+      const totalFiles = await DBClient.db.collection('files').countDocuments(filesQuery);
 
-      if (files.length === 0) {
-        return res.status(404).json({ error: 'No files found' });
+      // Check if requested page number is too far
+      if (page > 0 && totalFiles <= page * 20) {
+        return res.status(404).json({ error: 'No files found on this page' });
       }
-      // Return fetched files
-      return res.status(200).json(files.map((file) => ({
-        ...file,
-        id: file.id.toString(),
+
+      const files = await DBClient.db.collection('files')
+        .find(filesQuery)
+        .skip(page * 20)
+        .limit(20)
+        .toArray();
+
+      // Transform files to the required output format
+      const transformedFiles = files.map((file) => ({
+        id: file._id.toString(),
         userId: file.userId.toString(),
-        name: file.name.toString(),
-        type: file.type.toString(),
-        isPublic: file.isPublic.toString(),
-        parentId: file.parentId ? file.parentId.toString() : '0',
-      })));
+        name: file.name,
+        type: file.type,
+        isPublic: file.isPublic,
+        parentId: file.parentId.toString(),
+      }));
+      // Return fetched files
+      return res.status(200).json(files.map(transformedFiles));
     } catch (error) {
       console.error('Error in getIndex:', error);
       return res.status(500).json({ error: 'Internal server error' });
