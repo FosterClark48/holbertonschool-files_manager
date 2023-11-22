@@ -130,23 +130,26 @@ class FilesController {
     const parentId = req.query.parentId ? req.query.parentId : '0';
     const page = parseInt(req.query.page, 10) || 0;
     try {
-      // Query 'files' collection for files belonging to user
-      // Apply filtering based on parentID & pagination
-      const filesQuery = { userId: ObjectId(userId), parentId: ObjectId(parentId) };
-      const totalFiles = await DBClient.db.collection('files').countDocuments(filesQuery);
+      const pipeline = [
+        { $match: { userId: ObjectId(userId), parentId: ObjectId(parentId) } },
+        { $skip: page * 20 },
+        { $limit: 20 },
+      ];
+      const files = await DBClient.db.collection('files').aggregate(pipeline).toArray();
 
-      const files = await DBClient.db.collection('files')
-        .find(filesQuery)
-        .skip(page * 20) // Display next 20 docs on next page, etc.
-        .limit(20) // Limit the result to 20 docs per page
-        .toArray();
-
-      // Check if page number is too far
-      if (page > 0 && files.length === 0 && totalFiles > 0) {
-        return res.status(404).json({ error: 'No files found on this page' });
+      if (files.length === 0) {
+        return res.status(404).json({ error: 'No files found' });
       }
       // Return fetched files
-      return res.status(200).json(files);
+      return res.status(200).json(files.map((file) => ({
+        ...file,
+        id: file.id.toString(),
+        userId: file.userId.toString(),
+        name: file.name.toString(),
+        type: file.type.toString(),
+        isPublic: file.isPublic.toString(),
+        parentId: file.parentId ? file.parentId.toString() : '0',
+      })));
     } catch (error) {
       console.error('Error in getIndex:', error);
       return res.status(500).json({ error: 'Internal server error' });
