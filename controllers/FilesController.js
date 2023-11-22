@@ -1,11 +1,18 @@
 // controllers/FilesController.js task5, task6, task7, task8
+// External module imports
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
 const mimeType = require('mime-types');
 const { ObjectId } = require('mongodb');
+const Queue = require('bull');
+
+// Local module imports
 const DBClient = require('../utils/db');
 const RedisClient = require('../utils/redis');
+
+// Queue initialization
+const fileQueue = new Queue('fileQueue');
 
 // Helper function to get user ID from token
 async function getUserIdFromToken(token) {
@@ -83,6 +90,14 @@ class FilesController {
         // Insert file data into MongoDB
         const result = await DBClient.db.collection('files').insertOne(fileData);
         fileData = { ...fileData, id: result.insertedId };
+      }
+
+      if (type === 'image') {
+        // Add a job to the Bull queue for processing the image
+        fileQueue.add({
+          userId: objectIdUserId.toString(),
+          fileId: fileData.id.toString(),
+        });
       }
 
       // Return the new file information
@@ -245,18 +260,33 @@ class FilesController {
         return res.status(404).json({ error: 'Not found' });
       }
 
-      const { localPath } = file;
-      if (!fs.existsSync(localPath)) return res.status(404).json({ error: 'Not found' });
+      const localPath = file.localPath;
+      const size = req.query.size;
+      let filePath = localPath;
 
-      // Use mime-types to determine the file's MIME type
-      res.type(mimeType.lookup(localPath) || 'application/octet-stream');
+      if (size) {
+        const sizes = ['100', '250', '500'];
+        if (!sizes.includes(size)) {
+          return res.status(400).json({ error: 'Invalid size parameter' });
+        }
 
-      res.setHeader('Content-Type', mimeType);
-      return fs.createReadStream(localPath).pipe(res);
+        // Construct the path for the thumbnail
+        const thumbnailPath = path.join(path.dirname(localPath), `${path.basename(localPath, path.extname(localPath))}_${size}${path.extname(localPath)}`);
+        if (!fs.existsSync(thumbnailPath)) {
+          return res.status(404).json({ error: 'Thumbnail not found' });
+        }
+        filePath = thumbnailPath;
+      }
+
+      if (!fs.existsSync(localPath)) return res.status(404).json({ error: 'File not found' });
+
+      // Set the MIME type for the response and stream the thumbnail
+      const mimeTypeValue = mimeType.lookup(thumbnailPath) || 'application/octet-stream';
+      res.setHeader('Content-Type', mimeTypeValue);
+      return fs.createReadStream(thumbnailPath).pipe(res);
     } catch (error) {
-      console.error('Error in getFile:', error);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
+      console.error( 'Error in getFile:', error);
+      return res.status(500).json({ error: 'Internal server error '});
   }
 }
 
