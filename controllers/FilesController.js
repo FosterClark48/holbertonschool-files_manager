@@ -121,30 +121,41 @@ class FilesController {
   // Get all files from parentID with pagination
   static async getIndex(req, res) {
     const token = req.headers['x-token'];
-    // Retrieve userID from token, if not found - 401
-    const userId = await getUserIdFromToken(token);
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Extract parentID and page number from query params, w/ defaults
-    // Set default parentId to '0' (root) if not provided
+    // Retrieve user ID from token
+    let userId;
+    try {
+      userId = await getUserIdFromToken(token);
+      if (!userId) {
+        throw new Error('Unauthorized');
+      }
+    } catch (error) {
+      console.error(error);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Extract parentId and page from query parameters
     const parentId = req.query.parentId || '0';
     const page = parseInt(req.query.page, 10) || 0;
-    try {
-      const filesQuery = { userId: new ObjectId(userId), parentId: new ObjectId(parentId) };
-      const totalFiles = await DBClient.db.collection('files').countDocuments(filesQuery);
+    const skip = page * 20;
 
-      // Check if requested page number is too far
-      if (page > 0 && totalFiles <= page * 20) {
-        return res.status(404).json({ error: 'No files found on this page' });
+    try {
+      // Construct query for aggregation pipeline
+      const matchQuery = { userId: new ObjectId(userId) };
+      if (parentId !== '0') {
+        matchQuery.parentId = new ObjectId(parentId);
+      } else {
+        matchQuery.parentId = '0';
       }
 
-      const files = await DBClient.db.collection('files')
-        .find(filesQuery)
-        .skip(page * 20)
-        .limit(20)
-        .toArray();
+      // Use aggregation for efficient querying and pagination
+      const files = await DBClient.db.collection('files').aggregate([
+        { $match: matchQuery },
+        { $skip: skip },
+        { $limit: 20 },
+      ]).toArray();
 
-      // Transform files to the required output format
+      // Transform files for response
       const transformedFiles = files.map((file) => ({
         id: file._id.toString(),
         userId: file.userId.toString(),
@@ -153,8 +164,8 @@ class FilesController {
         isPublic: file.isPublic,
         parentId: file.parentId.toString(),
       }));
-      // Return fetched files
-      return res.status(200).json(files.map(transformedFiles));
+
+      return res.status(200).json(transformedFiles);
     } catch (error) {
       console.error('Error in getIndex:', error);
       return res.status(500).json({ error: 'Internal server error' });
