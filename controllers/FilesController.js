@@ -109,6 +109,84 @@ class FilesController {
     }
   }
 
+  // Get file based on user ID
+  static async getShow(req, res) {
+    const token = req.headers['x-token'];
+    // Verify user based on token, if unauthorized - 401
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const fileId = req.params.id;
+    if (!Object.isValid(fileId)) {
+      return res.status(400).json({ error: 'Invalid file ID' });
+    }
+
+    try {
+      // Check if file w/ provided ID exists & belongs to authenticated user
+      const file = await DBClient.db.collection('files').findOne({ _id: new ObjectId(fileId), userId: new ObjectId(userId) });
+      // If file doesn't exist - 404 - otherwise return file info
+      if (!file) return res.status(404).json({ error: 'Not found' });
+      return res.status(200).json(file);
+    } catch (error) {
+      console.error('Error in getShow:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get all files from parentID with pagination
+  static async getIndex(req, res) {
+    const token = req.headers['x-token'];
+
+    // Retrieve user ID from token
+    let userId;
+    try {
+      userId = await getUserIdFromToken(token);
+      if (!userId) {
+        throw new Error('Unauthorized');
+      }
+    } catch (error) {
+      console.error(error);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Extract parentId and page from query parameters
+    const parentId = req.query.parentId || '0';
+    const page = parseInt(req.query.page, 10) || 0;
+    const skip = page * 20;
+
+    try {
+      // Construct query for aggregation pipeline
+      const matchQuery = { userId: new ObjectId(userId) };
+      if (parentId !== '0') {
+        matchQuery.parentId = new ObjectId(parentId);
+      } else {
+        matchQuery.parentId = '0';
+      }
+
+      // Use aggregation for efficient querying and pagination
+      const files = await DBClient.db.collection('files').aggregate([
+        { $match: matchQuery },
+        { $skip: skip },
+        { $limit: 20 },
+      ]).toArray();
+
+      // Transform files for response
+      const transformedFiles = files.map((file) => ({
+        id: file._id.toString(),
+        userId: file.userId.toString(),
+        name: file.name,
+        type: file.type,
+        isPublic: file.isPublic,
+        parentId: file.parentId.toString(),
+      }));
+
+      return res.status(200).json(transformedFiles);
+    } catch (error) {
+      console.error('Error in getIndex:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   static async putPublish(req, res) {
     const fileId = req.params.id;
     const token = req.headers['x-token'];
@@ -159,65 +237,6 @@ class FilesController {
       return res.status(200).json(result.value);
     } catch (error) {
       console.error('Error in putUnpublish:', error);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-
-  // Get file based on user ID
-  static async getShow(req, res) {
-    const token = req.headers['x-token'];
-    // Verify user based on token, if unauthorized - 401
-    const userId = await getUserIdFromToken(token);
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    const fileId = req.params.id;
-    if (!Object.isValid(fileId)) {
-      return res.status(400).json({ error: 'Invalid file ID' });
-    }
-
-    try {
-      // Check if file w/ provided ID exists & belongs to authenticated user
-      const file = await DBClient.db.collection('files').findOne({ _id: new ObjectId(fileId), userId: new ObjectId(userId) });
-      // If file doesn't exist - 404 - otherwise return file info
-      if (!file) return res.status(404).json({ error: 'Not found' });
-      return res.status(200).json(file);
-    } catch (error) {
-      console.error('Error in getShow:', error);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-
-  // Get all files from parentID with pagination
-  static async getIndex(req, res) {
-    const token = req.headers['x-token'];
-    // Retrieve userID from token, if not found - 401
-    const userId = await getUserIdFromToken(token);
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    // Extract parentID and page number from query params, w/ defaults
-    // Set default parentId to '0' (root) if not provided
-    const parentId = req.query.parentId ? req.query.parentId : '0';
-    const page = parseInt(req.query.page, 10) || 0;
-    try {
-      // Query 'files' collection for files belonging to user
-      // Apply filtering based on parentID & pagination
-      const filesQuery = { userId: ObjectId(userId), parentId: ObjectId(parentId) };
-      const totalFiles = await DBClient.db.collection('files').countDocuments(filesQuery);
-
-      const files = await DBClient.db.collection('files')
-        .find(filesQuery)
-        .skip(page * 20) // Display next 20 docs on next page, etc.
-        .limit(20) // Limit the result to 20 docs per page
-        .toArray();
-
-      // Check if page number is too far
-      if (page > 0 && files.length === 0 && totalFiles > 0) {
-        return res.status(404).json({ error: 'No files found on this page' });
-      }
-      // Return fetched files
-      return res.status(200).json(files);
-    } catch (error) {
-      console.error('Error in getIndex:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
