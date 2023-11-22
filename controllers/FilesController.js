@@ -260,8 +260,8 @@ class FilesController {
         return res.status(404).json({ error: 'Not found' });
       }
 
-      const localPath = file.localPath;
-      const size = req.query.size;
+      const { localPath } = file;
+      const { size } = req.query;
       let filePath = localPath;
 
       if (size) {
@@ -281,12 +281,13 @@ class FilesController {
       if (!fs.existsSync(localPath)) return res.status(404).json({ error: 'File not found' });
 
       // Set the MIME type for the response and stream the thumbnail
-      const mimeTypeValue = mimeType.lookup(thumbnailPath) || 'application/octet-stream';
+      const mimeTypeValue = mimeType.lookup(filePath) || 'application/octet-stream';
       res.setHeader('Content-Type', mimeTypeValue);
-      return fs.createReadStream(thumbnailPath).pipe(res);
+      return fs.createReadStream(filePath).pipe(res);
     } catch (error) {
-      console.error( 'Error in getFile:', error);
-      return res.status(500).json({ error: 'Internal server error '});
+      console.error('Error in getFile:', error);
+      return res.status(500).json({ error: 'Internal server error ' });
+    }
   }
 }
 
